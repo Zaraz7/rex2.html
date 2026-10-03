@@ -1,0 +1,366 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>REX2.HTML</title>
+	<style>
+html {background-color:#000;}
+html, body{color:#dedede;font-family:Consolas,'Courier New',monospace;font-size: 16px !important;}
+pre,p{font-family:Consolas,'Courier New',Courier,monospace;}
+pre{margin:0;}
+hr{color:#fff;}
+img{
+image-rendering:optimizeSpeed;
+-ms-interpolation-mode:nearest-neighbor;
+}
+code{background-color:#0d1821;}
+a, label[for="fileInput"]{color: #767ea7;}
+a, a:hover {text-decoration:none;}
+a:hover, label[for="fileInput"]:hover {background-color:#182636;#767ea7;}
+
+.btns p {margin: 0px;}
+.btns a {
+ background-color: transparent;
+}
+.btns img:hover {
+ opacity: .6;
+}
+
+textarea, select {
+border-radius: 0;
+}
+
+label[for="fileInput"]{
+  color: #767ea7;
+  cursor: pointer;
+}
+
+#fileInput{display:none;}
+
+#fileName{
+  color: #6F6F6F;
+}
+#fileName.has-file{
+  color: #544F3D;
+}
+
+button, select {
+border-style:none;
+color:#767ea7;
+background-color:#0d1821;
+}
+button:hover, select:hover{
+background-color:#182636;
+}
+input[type="text"]  {
+background-color:#222222 !important;
+color:#FFFFFF !important;
+border-style:none none solid none !important;
+border-color:#FFFFFF !important;
+}
+.tAdapt {background-color:rgb(13,24,33); border-spacing: 16px;}
+
+tr {
+  padding: 16px 0;
+}
+
+.fs {
+  border: 2px solid #000;
+  padding: 4px 8px 8px;
+  margin: 8px;
+  vertical-align: top;
+}
+
+.fsTitle {
+  position: relative;
+  top: -16px;
+  display: inline;
+  padding: 0 4px;
+  background: rgb(13,24,33);
+  border-left: 2px solid #000;
+  border-right: 2px solid #000;
+}
+
+textarea, button {
+font-family:Consolas,'Courier New',monospace;;
+}
+.disabled {
+pointer-events:none;
+color:#888888;
+}
+
+#output,#srcHTML {width:50ch;}
+textarea {field-sizing: content;white-space: nowrap;}
+
+.footer {color:#000;}
+
+@media (max-width:1024px) {
+  pre {
+	box-sizing:border-box;
+  }
+  body {background-color:rgb(13,24,33);}
+}
+@media (max-width:768px) {
+  .ansi-art {
+  font-size:12px !important;
+  }
+.tAdapt {
+display: block;
+width: 100%;
+}
+.tAdapt tbody, .tAdapt tr {
+display: block;
+width: 100%;
+margin-bottom: 1ch;
+}
+
+.tAdapt td {
+display: block;
+width: 100%;
+border: none;
+}
+}
+	</style>
+</head>
+<body><center>
+<table class="tAdapt"><tbody>
+<caption>REX2.HTML</caption>
+  <tr>
+      <td class="fs">
+        <div class="fsTitle">Options</div><br>
+	<label for="fileInput">Select REXPaint file </label><input type="file" id="fileInput" accept=".xp"/><span class="file-name" id="fileName">File not selected.</span><br>
+	<select id="sUTF8map" name="selectUTF8map">
+	<option value="_utf8" selected>CP427 to UTF-8 (as usual)</option>
+	<option value="_866utf8">CP866 to UTF-8</option>
+	</select>
+	</td>
+    <td>
+    <button onclick="viewXpFile()">Convert</button>
+	</td>
+  </tr>
+  <tr valign="top">
+      <td class="fs">
+        <div class="fsTitle">Preview</div>
+    <div id="output"><span class="disabled">Nothing has been converted.</span></div>
+</td>
+      <td class="fs">
+        <div class="fsTitle">HTML code</div><br>
+	<textarea id="srcHTML" readonly></textarea></td>
+  </tr>
+  <tr><td class="footer">
+REX2.HTML (c) 2026 <a href="http://zaraz7.w10.site">Zaraz7</a><br>
+REXPaint (c) 2013-2026 <a href="https://www.gridsagegames.com">Kyzrati and Grid Sage Games</a>
+  </td>
+  </tr>
+</tbody>
+</table>
+
+</center>
+    <script src="vendor/zlib.pako.js"></script>
+    <script>
+let utf8Map = {};
+
+async function loadUtf8Map() {
+	try {
+		const mapFile = document.getElementById('sUTF8map').selectedOptions[0].value;
+		const response = await fetch('data/'+mapFile+'.txt');
+		const text = await response.text();
+		const lines = text.trim().split('\n');
+		
+		utf8Map = {};
+		lines.forEach(line => {
+			const parts = line.trim().split(/\s+/);
+			if (parts.length === 2) {
+				const ascii = parseInt(parts[0], 10);
+				const utf8Code = parseInt(parts[1], 10);
+				utf8Map[ascii] = String.fromCharCode(utf8Code);
+			}
+		});
+		
+		console.log('UTF8 map loaded:', Object.keys(utf8Map).length, 'entries:');
+		for (let pairId = 0; pairId < Object.keys(utf8Map).length; pairId++) {
+		console.log(pairId, ' ', utf8Map[pairId]);
+		}
+	} catch (error) {
+		console.error('Error loading UTF8 map:', error);
+	}
+}
+
+function viewXpFile() {
+	const fileInput = document.getElementById('fileInput');
+	const file = fileInput.files[0];
+	
+	if (!file) {
+		alert('Select REXPaint (.xp) file');
+		return;
+	}
+	
+	const reader = new FileReader();
+	
+	reader.onload = function(event) {
+		try {
+			const arrayBuffer = event.target.result;
+			const uint8Array = new Uint8Array(arrayBuffer);
+			
+			// pako - MIT License
+			// https://github.com/nodeca/pako
+			// (c) 2014-2017 Vitaly Puzrin, Andrei Tuputcyn
+			const decompressed = pako.inflate(uint8Array);	// Unzip with zlib
+			const dataView = new DataView(decompressed.buffer);
+			
+			let offset = 0;
+			
+			const version = dataView.getInt32(offset, true);
+			offset += 4;
+			
+			const numLayers = dataView.getInt32(offset, true);
+			offset += 4;
+			
+			const layers = [];
+			let width, height;
+			
+			for (let layerIdx = 0; layerIdx < numLayers; layerIdx++) {
+				width = dataView.getInt32(offset, true);
+				offset += 4;
+				
+				height = dataView.getInt32(offset, true);
+				offset += 4;
+				const cells = [];
+			
+				for (let y = 0; y < width; y++) {
+					for (let x = 0; x < height; x++) {
+						const ascii = dataView.getInt32(offset, true);
+						offset += 4;
+						
+						const fgRed = dataView.getUint8(offset);
+						offset += 1;
+						const fgGreen = dataView.getUint8(offset);
+						offset += 1;
+						const fgBlue = dataView.getUint8(offset);
+						offset += 1;
+						
+						const bgRed = dataView.getUint8(offset);
+						offset += 1;
+						const bgGreen = dataView.getUint8(offset);
+						offset += 1;
+						const bgBlue = dataView.getUint8(offset);
+						offset += 1;
+						
+						const char = utf8Map[ascii] || String.fromCharCode(ascii);
+						
+						cells.push({
+							ascii: ascii,
+							char: char,
+							fg: `#${(0x1000000 | fgRed << 16 | fgGreen << 8 | fgBlue).toString(16).slice(1)}`,
+							bg: `#${(0x1000000 | bgRed << 16 | bgGreen << 8 | bgBlue).toString(16).slice(1)}`,
+							isTransparent: bgRed === 255 && bgGreen === 0 && bgBlue === 255
+						});
+					}
+				}
+				layers.push(cells);
+			}
+			
+			const composited = [];
+			
+			for (let index = 0; index < width * height; index++) {
+				let layerIndex = numLayers - 1;
+				let cell = layers[layerIndex][index];
+				
+				while ((cell.isTransparent) && layerIndex > 0) {
+					layerIndex--;
+					cell = layers[layerIndex][index];
+				}
+				
+				composited.push(cell);
+			}
+			
+			let html = '<pre style="background: black; overflow: auto;">';
+			
+			let lastColors = [composited[0].fg, composited[0].bg];
+			if (composited[0].isTransparent) {
+				html += '<span style="color:' + lastColors[0] + ';">';
+			} else {
+				html += '<span style="color:' + lastColors[0] + ';background:' + lastColors[1] + ';">';
+			}
+			
+			
+			for (let y = 0; y < height; y++) {
+				for (let x = 0; x < width; x++) {
+					const index = x * height + y;
+					const cell = composited[index];
+					
+					if (cell.char !== ' ' && cell.fg !== lastColors[0] || cell.bg !== lastColors[1]) {
+						html += '</span><span style="color:' + cell.fg;
+						html += (cell.isTransparent ? '' : '; background:' + cell.bg ) + ';">';
+						lastColors = [cell.fg, cell.bg];
+					} 
+					if (cell.isTransparent || cell.ascii === ' ') {
+						html += ' ';
+					} else {
+						html += escapeHtml(cell.char);
+					}
+				}
+				html += '\n';
+			}
+			
+			html += '</span></pre>';
+			const outputTA = document.getElementById('srcHTML');
+			outputTA.value = html;
+			
+			// Post-view information
+			html += '<h3>Info:</h3>';
+			html += '<p>Version: ' + version + '</p>';
+			html += '<p>Layers: ' + numLayers + '</p>';
+			html += '<p>Resolution: ' + width + ' x ' + height + '</p>';
+			
+			const outputDiv = document.getElementById('output')
+			outputDiv.innerHTML = html;
+			
+			
+		} catch (error) {
+			document.getElementById('output').innerHTML = 
+				'<p style="color: red;">Error: ' + error.message + '</p>';
+			console.error(error);
+		}
+	};
+	
+	reader.readAsArrayBuffer(file);
+}
+
+function escapeHtml(text) {
+	const div = document.createElement('div');
+	div.textContent = text;
+	return div.innerHTML;
+}
+
+document.getElementById('srcHTML').value = '';
+document.getElementById("sUTF8map").onchange = changeSelect;
+
+function changeFile(){
+  var curFiles = input.files;
+  if (curFiles.length === 0) {
+    var para = document.createElement("p");
+    para.textContent = "No files currently selected for upload";
+    preview.appendChild(para);
+  } else {
+  
+  }
+}
+
+document.getElementById('fileInput').addEventListener('change', function () {
+  const fileName = document.getElementById('fileName');
+  if (this.files && this.files.length > 0) {
+    fileName.textContent = this.files[0].name;
+    fileName.classList.add('has-file');
+  } else {
+    fileName.textContent = 'File not selected';
+    fileName.classList.remove('has-file');
+  }
+});
+
+function changeSelect(){loadUtf8Map();}
+loadUtf8Map();
+    </script>
+</body>
+</html>
