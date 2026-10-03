@@ -136,7 +136,11 @@ border: none;
 	</select>
 	</td>
     <td>
-    <button onclick="viewXpFile()">Convert</button>
+    <button onclick="viewXpFile()"><pre> __   __  _  _ _  _ ____ ___  _____
+#  " #  # #\ # #  # #_ " #_/" " # "
+#__, #__# # \#  \/  #__, # "#   #   
+
+</pre></button>
 	</td>
   </tr>
   <tr valign="top">
@@ -309,10 +313,10 @@ function viewXpFile() {
 			outputTA.value = html;
 			
 			// Post-view information
-			html += '<h3>Info:</h3>';
-			html += '<p>Version: ' + version + '</p>';
-			html += '<p>Layers: ' + numLayers + '</p>';
-			html += '<p>Resolution: ' + width + ' x ' + height + '</p>';
+			html += '<pre>Info:\n';
+			html += 'Version: ' + version + '\n';
+			html += 'Layers: ' + numLayers + '\n';
+			html += 'Resolution: ' + width + ' x ' + height + '</pre>';
 			
 			const outputDiv = document.getElementById('output')
 			outputDiv.innerHTML = html;
