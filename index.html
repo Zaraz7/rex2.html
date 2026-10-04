@@ -150,7 +150,8 @@ border: none;
 </td>
       <td class="fs">
         <div class="fsTitle">HTML code</div><br>
-	<textarea id="srcHTML" readonly></textarea></td>
+	<textarea id="srcHTML" readonly></textarea><br>
+    <span id="bytes">0</span> symbols</td>
   </tr>
   <tr><td class="footer">
 REX2.HTML (c) 2026 <a href="http://zaraz7.w10.site">Zaraz7</a><br>
@@ -311,6 +312,8 @@ function viewXpFile() {
 			html += '</span></pre>';
 			const outputTA = document.getElementById('srcHTML');
 			outputTA.value = html;
+			
+			document.getElementById('bytes').textContent = html.length;
 			
 			// Post-view information
 			html += '<pre>Info:\n';
