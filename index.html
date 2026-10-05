@@ -90,6 +90,35 @@ pointer-events:none;
 color:#888888;
 }
 
+.radio {
+  display: block;
+  cursor: pointer;
+}
+
+.radio:hover {
+background-color:#182636;
+}
+
+.radio input {
+  position: absolute;
+  opacity: 0;
+}
+
+.radio label::before {
+  content: "[ ]";
+  white-space: pre;
+}
+
+.radio input:checked + label::before {
+  content: "[x]";
+}
+
+.radio input:focus-visible + label {
+  outline: 1px dotted currentColor;
+  outline-offset: 2px;
+}
+
+
 #output,#srcHTML {width:50ch;}
 textarea {field-sizing: content;white-space: nowrap;}
 
@@ -133,7 +162,11 @@ border: none;
 	<select id="sUTF8map" name="selectUTF8map">
 	<option value="_utf8" selected>CP427 to UTF-8 (as usual)</option>
 	<option value="_866utf8">CP866 to UTF-8</option>
-	</select>
+	</select><br>
+<div class="radio">
+  <input type="checkbox" id="chCSS" name="chCSS" checked>
+  <label for="chCSS"> Use CSS classes</label>
+</div>
 	</td>
     <td>
     <button onclick="viewXpFile()"><pre> __   __  _  _ _  _ ____ ___  _____
@@ -154,7 +187,7 @@ border: none;
     <span id="bytes">0</span> symbols</td>
   </tr>
   <tr><td class="footer">
-REX2.HTML (c) 2026 <a href="http://zaraz7.w10.site">Zaraz7</a><br>
+REX2.HTML 1.1 (c) 2026 <a href="http://zaraz7.w10.site">Zaraz7</a><br>
 REXPaint (c) 2013-2026 <a href="https://www.gridsagegames.com">Kyzrati and Grid Sage Games</a>
   </td>
   </tr>
@@ -192,6 +225,17 @@ async function loadUtf8Map() {
 	}
 }
 
+function rgb2hex(r, g, b){
+    const bbr = r >> 4;
+    const bbg = g >> 4;
+    const bbb = b >> 4;
+	if ((bbr === (r & 15)) && (bbg === (g & 15)) && (bbb === (b & 15))) {
+		return `#${(0x1000 | bbr << 8 | bbg << 4 | bbb).toString(16).slice(1)}`
+    } else {
+        return `#${(0x1000000 | r << 16 | g << 8 | b).toString(16).slice(1)}`
+    }
+}
+
 function viewXpFile() {
 	const fileInput = document.getElementById('fileInput');
 	const file = fileInput.files[0];
@@ -207,6 +251,7 @@ function viewXpFile() {
 		try {
 			const arrayBuffer = event.target.result;
 			const uint8Array = new Uint8Array(arrayBuffer);
+			let colorsFreq = {f:{}, b:{}};
 			
 			// pako - MIT License
 			// https://github.com/nodeca/pako
@@ -254,11 +299,17 @@ function viewXpFile() {
 						
 						const char = utf8Map[ascii] || String.fromCharCode(ascii);
 						
+						const fg = rgb2hex(fgRed, fgGreen, fgBlue);
+						const bg = rgb2hex(bgRed, bgGreen, bgBlue);
+						
+						colorsFreq['f'][fg] = (colorsFreq['f'][fg] || 0) + 1;
+						colorsFreq['b'][bg] = (colorsFreq['b'][bg] || 0) + 1;
+						
 						cells.push({
 							ascii: ascii,
 							char: char,
-							fg: `#${(0x1000000 | fgRed << 16 | fgGreen << 8 | fgBlue).toString(16).slice(1)}`,
-							bg: `#${(0x1000000 | bgRed << 16 | bgGreen << 8 | bgBlue).toString(16).slice(1)}`,
+							fg: fg,
+							bg: bg,
 							isTransparent: bgRed === 255 && bgGreen === 0 && bgBlue === 255
 						});
 					}
@@ -327,7 +378,7 @@ function viewXpFile() {
 			
 		} catch (error) {
 			document.getElementById('output').innerHTML = 
-				'<p style="color: red;">Error: ' + error.message + '</p>';
+				'<p style="color:red;">Error: ' + error.message + '</p>';
 			console.error(error);
 		}
 	};
