@@ -239,6 +239,7 @@ function rgb2hex(r, g, b){
 function viewXpFile() {
 	const fileInput = document.getElementById('fileInput');
 	const file = fileInput.files[0];
+	const useCSS = document.getElementById('chCSS').checked;
 	
 	if (!file) {
 		alert('Select REXPaint (.xp) file');
@@ -251,7 +252,7 @@ function viewXpFile() {
 		try {
 			const arrayBuffer = event.target.result;
 			const uint8Array = new Uint8Array(arrayBuffer);
-			let colorsFreq = {f:{}, b:{}};
+			let colorsFreq = {'':{}, 'background-':{}};
 			
 			// pako - MIT License
 			// https://github.com/nodeca/pako
@@ -302,8 +303,8 @@ function viewXpFile() {
 						const fg = rgb2hex(fgRed, fgGreen, fgBlue);
 						const bg = rgb2hex(bgRed, bgGreen, bgBlue);
 						
-						colorsFreq['f'][fg] = (colorsFreq['f'][fg] || 0) + 1;
-						colorsFreq['b'][bg] = (colorsFreq['b'][bg] || 0) + 1;
+						colorsFreq[''][fg] = (colorsFreq[''][fg] || 0) + 1;
+						colorsFreq['background-'][bg] = (colorsFreq['background-'][bg] || 0) + 1;
 						
 						cells.push({
 							ascii: ascii,
@@ -330,16 +331,21 @@ function viewXpFile() {
 				
 				composited.push(cell);
 			}
+			const bColor = '#000';
+			const preCSS = 'background:'+bColor+';overflow:auto;';
 			
-			let html = '<pre style="background: black; overflow: auto;">';
-			
-			let lastColors = [composited[0].fg, composited[0].bg];
-			if (composited[0].isTransparent) {
-				html += '<span style="color:' + lastColors[0] + ';">';
+			let css;
+			let html = '<pre '
+			if (useCSS){
+				css = '<style>.rex{'+preCSS+'}';
+				html += 'class="rex'
 			} else {
-				html += '<span style="color:' + lastColors[0] + ';background:' + lastColors[1] + ';">';
+				html += 'style=' + preCSS;
 			}
+			html+='">';
 			
+			let lastColors = [bColor, bColor];
+			let openTag = false;
 			
 			for (let y = 0; y < height; y++) {
 				for (let x = 0; x < width; x++) {
@@ -347,7 +353,8 @@ function viewXpFile() {
 					const cell = composited[index];
 					
 					if (cell.char !== ' ' && cell.fg !== lastColors[0] || cell.bg !== lastColors[1]) {
-						html += '</span><span style="color:' + cell.fg;
+						if (openTag){html += '</span>'}
+						html += '<span style="color:' + cell.fg;
 						html += (cell.isTransparent ? '' : '; background:' + cell.bg ) + ';">';
 						lastColors = [cell.fg, cell.bg];
 					} 
@@ -358,6 +365,9 @@ function viewXpFile() {
 					}
 				}
 				html += '\n';
+			}
+			if (useCSS){
+				html = css + '</style>\n' + html;
 			}
 			
 			html += '</span></pre>';
