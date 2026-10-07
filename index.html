@@ -252,7 +252,8 @@ function viewXpFile() {
 		try {
 			const arrayBuffer = event.target.result;
 			const uint8Array = new Uint8Array(arrayBuffer);
-			let colorsFreq = {'':{}, 'background-':{}};
+
+			const colorsFreq = {'': {}, 'background-': {}};
 			
 			// pako - MIT License
 			// https://github.com/nodeca/pako
@@ -278,7 +279,8 @@ function viewXpFile() {
 				height = dataView.getInt32(offset, true);
 				offset += 4;
 				const cells = [];
-			
+
+				// XXX: It might be worth replacing the two loops with one. charIndex < width * height
 				for (let y = 0; y < width; y++) {
 					for (let x = 0; x < height; x++) {
 						const ascii = dataView.getInt32(offset, true);
@@ -303,9 +305,6 @@ function viewXpFile() {
 						const fg = rgb2hex(fgRed, fgGreen, fgBlue);
 						const bg = rgb2hex(bgRed, bgGreen, bgBlue);
 						
-						colorsFreq[''][fg] = (colorsFreq[''][fg] || 0) + 1;
-						colorsFreq['background-'][bg] = (colorsFreq['background-'][bg] || 0) + 1;
-						
 						cells.push({
 							ascii: ascii,
 							char: char,
@@ -319,58 +318,78 @@ function viewXpFile() {
 			}
 			
 			const composited = [];
-			
 			for (let index = 0; index < width * height; index++) {
 				let layerIndex = numLayers - 1;
 				let cell = layers[layerIndex][index];
-				
-				while ((cell.isTransparent) && layerIndex > 0) {
+				while (cell.isTransparent && layerIndex > 0) {
 					layerIndex--;
 					cell = layers[layerIndex][index];
 				}
-				
 				composited.push(cell);
 			}
+
 			const bColor = '#000';
-			const preCSS = 'background:'+bColor+';overflow:auto;';
-			
-			let css;
-			let html = '<pre '
-			if (useCSS){
-				css = '<style>.rex{'+preCSS+'}';
-				html += 'class="rex'
-			} else {
-				html += 'style=' + preCSS;
-			}
-			html+='">';
-			
-			let lastColors = [bColor, bColor];
-			let openTag = false;
-			
+			const preCSS = 'background:' + bColor + ';overflow:auto;';
+			const runs = [];
+			let run = null;
+
+			// Count color changes in the rendered spans, not the number of cells using a color.
 			for (let y = 0; y < height; y++) {
 				for (let x = 0; x < width; x++) {
-					const index = x * height + y;
-					const cell = composited[index];
-					
-					if (cell.char !== ' ' && cell.fg !== lastColors[0] || cell.bg !== lastColors[1]) {
-						if (openTag){html += '</span>'}
-						html += '<span style="color:' + cell.fg;
-						html += (cell.isTransparent ? '' : '; background:' + cell.bg ) + ';">';
-						lastColors = [cell.fg, cell.bg];
-					} 
-					if (cell.isTransparent || cell.ascii === ' ') {
-						html += ' ';
-					} else {
-						html += escapeHtml(cell.char);
+					const cell = composited[x * height + y];
+					const char = cell.isTransparent || cell.ascii === 32 ? ' ' : escapeHtml(cell.char);
+					const bg = cell.isTransparent ? bColor : cell.bg;
+					const fg = char === ' ' ? (run && run.bg === bg ? run.fg : null) : cell.fg;
+
+					if (!run || run.fg !== fg || run.bg !== bg) {
+						run = {fg: fg, bg: bg, text: ''};
+						runs.push(run);
+						if (fg !== null) colorsFreq[''][fg] = (colorsFreq[''][fg] || 0) + 1;
+						if (bg !== bColor) colorsFreq['background-'][bg] = (colorsFreq['background-'][bg] || 0) + 1;
+					}
+					run.text += char;
+				}
+				if (run) run.text += '\n';
+			}
+
+			const colorClasses = {'': {}, 'background-': {}};
+			let css = '<style>.rex{' + preCSS + '}';
+			if (useCSS) {
+				for (const planKey of Object.keys(colorsFreq)) {
+					let classIndex = 0;
+					for (const color of Object.keys(colorsFreq[planKey])) {
+						if (colorsFreq[planKey][color] > 1) {
+							const className = (planKey ? 'b' : 'f') + (classIndex++).toString(16);
+							colorClasses[planKey][color] = className;
+							css += '.rex .' + className + '{' + planKey + 'color:' + color + ';}';
+						}
 					}
 				}
-				html += '\n';
 			}
-			if (useCSS){
-				html = css + '</style>\n' + html;
+
+			let html = useCSS ? '<pre class="rex">' : '<pre style="' + preCSS + '">';
+			for (const segment of runs) {
+				const classes = [];
+				const styles = [];
+				if (segment.fg !== null) {
+					const className = colorClasses[''][segment.fg];
+					if (className) classes.push(className);
+					else styles.push('color:' + segment.fg);
+				}
+				if (segment.bg !== bColor) {
+					const className = colorClasses['background-'][segment.bg];
+					if (className) classes.push(className);
+					else styles.push('background-color:' + segment.bg);
+				}
+				if (classes.length || styles.length) {
+					html += '<span' + (classes.length ? ' class="' + classes.join(' ') + '"' : '')
+						+ (styles.length ? ' style="' + styles.join(';') + ';"' : '') + '>' + segment.text + '</span>';
+				} else {
+					html += segment.text;
+				}
 			}
-			
-			html += '</span></pre>';
+			html += '</pre>';
+			if (useCSS) html = css + '</style>\n' + html;
 			const outputTA = document.getElementById('srcHTML');
 			outputTA.value = html;
 			
